@@ -15,6 +15,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Wheat } from "lucide-react";
+import { Plus, Edit, Trash2, Wheat, Loader2 } from "lucide-react";
 
 const CROP_TYPES = [
   { value: "CEREALS", label: "Cereals" },
@@ -40,6 +51,8 @@ export default function MyCropsPage() {
   const router = useRouter();
   const [crops, setCrops] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCrop, setEditingCrop] = useState<any>(null);
   const [formData, setFormData] = useState({
@@ -72,6 +85,7 @@ export default function MyCropsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
 
     try {
       const cropData = {
@@ -92,6 +106,8 @@ export default function MyCropsPage() {
       await loadCrops();
     } catch (error) {
       console.error("Error saving crop:", error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -107,13 +123,14 @@ export default function MyCropsPage() {
   };
 
   const handleDelete = async (cropId: string) => {
-    if (confirm("Are you sure you want to delete this crop?")) {
-      try {
-        await cropsApi.delete(cropId);
-        await loadCrops();
-      } catch (error) {
-        console.error("Error deleting crop:", error);
-      }
+    setDeleting(cropId);
+    try {
+      await cropsApi.delete(cropId);
+      await loadCrops();
+    } catch (error) {
+      console.error("Error deleting crop:", error);
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -176,6 +193,7 @@ export default function MyCropsPage() {
                   }
                   placeholder="e.g., Corn, Tomatoes"
                   required
+                  disabled={submitting}
                 />
               </div>
               <div>
@@ -185,6 +203,7 @@ export default function MyCropsPage() {
                   onValueChange={(value) =>
                     setFormData({ ...formData, type: value })
                   }
+                  disabled={submitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select crop type" />
@@ -211,6 +230,7 @@ export default function MyCropsPage() {
                     }
                     placeholder="0.0"
                     required
+                    disabled={submitting}
                   />
                 </div>
                 <div>
@@ -223,17 +243,28 @@ export default function MyCropsPage() {
                     }
                     placeholder="kg"
                     required
+                    disabled={submitting}
                   />
                 </div>
               </div>
               <div className="flex gap-2 pt-4">
-                <Button type="submit" className="flex-1">
-                  {editingCrop ? "Update Crop" : "Add Crop"}
+                <Button type="submit" className="flex-1" disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {editingCrop ? "Updating..." : "Adding..."}
+                    </>
+                  ) : editingCrop ? (
+                    "Update Crop"
+                  ) : (
+                    "Add Crop"
+                  )}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setDialogOpen(false)}
+                  disabled={submitting}
                 >
                   Cancel
                 </Button>
@@ -266,17 +297,56 @@ export default function MyCropsPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => handleEdit(crop)}
+                  disabled={deleting === crop.id}
                 >
                   <Edit className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(crop.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700"
+                      disabled={deleting === crop.id}
+                    >
+                      {deleting === crop.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Crop</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete{" "}
+                        <strong>{crop.name}</strong>? This action cannot be
+                        undone and will permanently remove this crop from your
+                        inventory.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={deleting === crop.id}>
+                        Cancel
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDelete(crop.id)}
+                        className="bg-red-600 hover:bg-red-700"
+                        disabled={deleting === crop.id}
+                      >
+                        {deleting === crop.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          "Delete"
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">

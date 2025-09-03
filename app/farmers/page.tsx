@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// app/farmers/page.tsx (or your farmers page)
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,13 +9,50 @@ import { farmersApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, User, Phone, MapPin } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  User,
+  Phone,
+  MapPin,
+  Calendar,
+  Hash,
+  MapPinIcon,
+} from "lucide-react";
+import { FarmerModal } from "@/components/farmers/farmer-modal";
+import { DeleteFarmerDialog } from "@/components/farmers/delete-farmer-dialog";
+import { toast } from "sonner";
+
+interface Farmer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  address?: string;
+  dateOfBirth?: string;
+  nationalId?: string;
+  farmSize?: number;
+  farmLocation?: string;
+  user: {
+    email: string;
+  };
+  _count: {
+    crops: number;
+  };
+  createdAt: string;
+}
 
 export default function FarmersPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [farmers, setFarmers] = useState([]);
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!loading) {
@@ -32,19 +70,77 @@ export default function FarmersPage() {
       setFarmers(data);
     } catch (error) {
       console.error("Error loading farmers:", error);
+      toast.error("Failed to load farmers");
     } finally {
       setLoadingData(false);
     }
   };
 
-  const handleDelete = async (farmerId: string) => {
-    if (confirm("Are you sure you want to delete this farmer?")) {
-      try {
-        await farmersApi.delete(farmerId);
-        await loadFarmers();
-      } catch (error) {
-        console.error("Error deleting farmer:", error);
+  const handleAddFarmer = () => {
+    setSelectedFarmer(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditFarmer = (farmer: Farmer) => {
+    // Prepare data for the form
+    const farmerData = {
+      id: farmer.id,
+      firstName: farmer.firstName,
+      lastName: farmer.lastName,
+      email: farmer.user.email,
+      phone: farmer.phone || "",
+      address: farmer.address || "",
+      dateOfBirth: farmer.dateOfBirth || "",
+      nationalId: farmer.nationalId || "",
+      farmSize: farmer.farmSize || 0,
+      farmLocation: farmer.farmLocation || "",
+    };
+    setSelectedFarmer(farmerData as any);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteClick = (farmer: Farmer) => {
+    setSelectedFarmer(farmer);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleSubmit = async (data: any) => {
+    setIsSubmitting(true);
+    try {
+      if (selectedFarmer?.id) {
+        // Update existing farmer
+        await farmersApi.update(selectedFarmer.id, data);
+        toast.success("Farmer updated successfully");
+      } else {
+        // Create new farmer
+        await farmersApi.create(data);
+        toast.success("Farmer added successfully");
       }
+      setIsModalOpen(false);
+      await loadFarmers(); // Refresh data
+    } catch (error) {
+      console.error("Error saving farmer:", error);
+      toast.error("Failed to save farmer");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedFarmer) return;
+
+    setIsSubmitting(true);
+    try {
+      await farmersApi.delete(selectedFarmer.id);
+      toast.success("Farmer deleted successfully");
+      setIsDeleteDialogOpen(false);
+      setSelectedFarmer(null);
+      await loadFarmers(); // Refresh data
+    } catch (error) {
+      console.error("Error deleting farmer:", error);
+      toast.error("Failed to delete farmer");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -67,67 +163,98 @@ export default function FarmersPage() {
             Manage all registered farmers in your cooperative
           </p>
         </div>
-        <Button className="gap-2">
+        <Button onClick={handleAddFarmer} className="gap-2">
           <Plus className="h-4 w-4" />
           Add Farmer
         </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-        {farmers.map((farmer: any) => (
-          <Card
-            key={farmer.id}
-            className="transition-all duration-200 hover:shadow-md"
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-full">
-                  <User className="h-5 w-5 text-green-600" />
+      <ScrollArea className="h-[calc(100vh-200px)]">
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3 pr-4">
+          {farmers.map((farmer) => (
+            <Card
+              key={farmer.id}
+              className="transition-all duration-200 hover:shadow-md"
+            >
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-100 rounded-full">
+                    <User className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-lg truncate">
+                      {farmer.firstName} {farmer.lastName}
+                    </CardTitle>
+                    <p className="text-sm text-gray-600 truncate">
+                      {farmer.user.email}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="text-lg">
-                    {farmer.firstName} {farmer.lastName}
-                  </CardTitle>
-                  <p className="text-sm text-gray-600">{farmer.user.email}</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEditFarmer(farmer)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteClick(farmer)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm">
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(farmer.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {farmer.phone && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Phone className="h-4 w-4" />
-                  {farmer.phone}
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {farmer.phone && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Phone className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{farmer.phone}</span>
+                  </div>
+                )}
+                {farmer.address && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <MapPin className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{farmer.address}</span>
+                  </div>
+                )}
+                {farmer.farmSize && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Hash className="h-4 w-4 flex-shrink-0" />
+                    <span>{farmer.farmSize} acres</span>
+                  </div>
+                )}
+                {farmer.farmLocation && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <MapPinIcon className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{farmer.farmLocation}</span>
+                  </div>
+                )}
+                {farmer.dateOfBirth && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Calendar className="h-4 w-4 flex-shrink-0" />
+                    <span>
+                      {new Date(farmer.dateOfBirth).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-2">
+                  <Badge variant="secondary">{farmer._count.crops} crops</Badge>
+                  <Badge variant="outline" className="text-green-700">
+                    Active
+                  </Badge>
                 </div>
-              )}
-              {farmer.address && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapPin className="h-4 w-4" />
-                  {farmer.address}
+                <div className="text-xs text-gray-500">
+                  Joined {new Date(farmer.createdAt).toLocaleDateString()}
                 </div>
-              )}
-              <div className="flex items-center justify-between pt-2">
-                <Badge variant="secondary">{farmer._count.crops} crops</Badge>
-                <Badge variant="outline" className="text-green-700">
-                  Active
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </ScrollArea>
 
       {farmers.length === 0 && (
         <div className="text-center py-12">
@@ -140,6 +267,26 @@ export default function FarmersPage() {
           </p>
         </div>
       )}
+
+      <FarmerModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleSubmit}
+        initialData={selectedFarmer}
+        isLoading={isSubmitting}
+      />
+
+      <DeleteFarmerDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        farmerName={
+          selectedFarmer
+            ? `${selectedFarmer.firstName} ${selectedFarmer.lastName}`
+            : ""
+        }
+        isLoading={isSubmitting}
+      />
     </div>
   );
 }
