@@ -2,7 +2,6 @@
 
 import { useAuth } from "@/lib/auth";
 import { Sidebar } from "./sidebar";
-import { MobileSidebar } from "./mobile-sidebar";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -20,20 +19,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
-        <Sidebar />
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <Sidebar />
 
-      {/* Mobile Header with Sidebar Toggle */}
-      <div className="lg:hidden">
-        <MobileSidebar />
+      {/* Main content */}
+      <div className="lg:pl-64">
+        <main className="py-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            {children}
+          </div>
+        </main>
       </div>
-
-      <main className="flex-1 overflow-auto">
-        <div className="p-6">{children}</div>
-      </main>
     </div>
   );
 }

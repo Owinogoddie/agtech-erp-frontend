@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -12,7 +13,9 @@ import {
   User,
   LogOut,
   Sprout,
+  Menu,
 } from "lucide-react";
+import { useState } from "react";
 
 const adminNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -26,7 +29,7 @@ const farmerNavItems = [
   { href: "/my-crops", label: "My Crops", icon: Wheat },
 ];
 
-export function Sidebar() {
+function SidebarContent({ onLinkClick }: { onLinkClick?: () => void }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
 
@@ -35,7 +38,7 @@ export function Sidebar() {
   const navItems = user.role === "ADMIN" ? adminNavItems : farmerNavItems;
 
   return (
-    <div className="flex h-full w-64 flex-col bg-white border-r border-gray-200 shadow-sm">
+    <div className="flex h-full w-full flex-col bg-white">
       <div className="flex items-center gap-2 px-6 py-6 border-b border-gray-200">
         <Sprout className="h-8 w-8 text-green-600" />
         <div>
@@ -55,6 +58,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onLinkClick}
               className={cn(
                 "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors",
                 isActive
@@ -79,7 +83,10 @@ export function Sidebar() {
           <p className="text-xs text-gray-500">{user.email}</p>
         </div>
         <Button
-          onClick={logout}
+          onClick={() => {
+            logout();
+            onLinkClick?.();
+          }}
           variant="ghost"
           size="sm"
           className="w-full justify-start gap-2 text-gray-600 hover:text-gray-900"
@@ -89,5 +96,49 @@ export function Sidebar() {
         </Button>
       </div>
     </div>
+  );
+}
+
+export function Sidebar() {
+  const [open, setOpen] = useState(false);
+  const { user } = useAuth();
+
+  if (!user) return null;
+
+  return (
+    <>
+      {/* Desktop Sidebar - Only shows on lg+ screens */}
+      <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 border-r border-gray-200 shadow-sm">
+        <SidebarContent />
+      </div>
+
+      {/* Mobile Header and Sheet - Only shows on screens smaller than lg */}
+      <div className="lg:hidden">
+        {/* Mobile Header */}
+        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6">
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="sm" className="-m-2.5 p-2.5">
+                <Menu className="h-5 w-5" aria-hidden="true" />
+                <span className="sr-only">Open sidebar</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64 p-0">
+              <SidebarContent onLinkClick={() => setOpen(false)} />
+            </SheetContent>
+          </Sheet>
+
+          <div className="flex items-center gap-2">
+            <Sprout className="h-6 w-6 text-green-600" />
+            <h1 className="text-lg font-semibold text-gray-900">AgTech ERP</h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop sidebar spacer - Only on lg+ screens */}
+      <div className="hidden lg:block lg:w-64 lg:shrink-0" aria-hidden="true">
+        {/* Spacer element to force main content to the right on desktop */}
+      </div>
+    </>
   );
 }
